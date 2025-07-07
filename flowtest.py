@@ -2,13 +2,16 @@ import sys
 import pandas as pd
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QFileDialog, QLabel, QGroupBox, QTableWidget, QTableWidgetItem,
-    QAbstractItemView, QComboBox, QLineEdit, QSpinBox, QMessageBox
+    QLabel, QGroupBox, QTableWidget, QTableWidgetItem,
+    QAbstractItemView, QComboBox, QLineEdit, QSpinBox
 )
 from PyQt5.QtCore import Qt
 from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Spacer, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 from reportlab.lib.units import cm
+from PyQt5.QtWidgets import QMessageBox, QFileDialog
 from datetime import datetime
 
 
@@ -126,8 +129,8 @@ class FlowmeterApp(QWidget):
         report_layout.setSpacing(10)
 
         self.device_id_label = QLabel("Device ID: -")
-        self.meter_type_display = QLabel("Selected Meter: Klepsan Woltman DN50")
-        self.multiplier_label = QLabel("Multiplier: 10.00")
+        self.meter_type_display = QLabel("Water Meter: Klepsan Woltman DN50")
+        self.multiplier_label = QLabel("Multiplier: 10")
         self.meter_result_label = QLabel("Water Meter Count: -")
         self.total_label = QLabel("Flowmeter Count: -")
         self.error_label = QLabel("Relative Error: -")
@@ -183,15 +186,15 @@ class FlowmeterApp(QWidget):
     def update_meter_info(self):
         meter_type = self.meter_type_combo.currentText()
         self.meter_multiplier = self.meter_multiplier_map.get(meter_type, 1.0)
-        self.meter_type_display.setText(f"Selected Meter: {meter_type}")
-        self.multiplier_label.setText(f"Multiplier: {self.meter_multiplier:.2f}")
+        self.meter_type_display.setText(f"Water Meter: {meter_type}")
+        self.multiplier_label.setText(f"Multiplier: {self.meter_multiplier:.0f}")
 
     def calculate_meter_volume(self):
         try:
             start = float(self.start_x1.text() or 0) + self.start_x01.value() / 10 + self.start_x001.value() / 100
             end = float(self.end_x1.text() or 0) + self.end_x01.value() / 10 + self.end_x001.value() / 100
             delta = max(0, end - start)
-            result = delta * self.meter_multiplier
+            result = delta * 1000 / self.meter_multiplier
             return result
         except:
             return 0.0
@@ -208,9 +211,9 @@ class FlowmeterApp(QWidget):
 
         meter_volume = self.calculate_meter_volume()
 
-        self.total_label.setText(f"Flowmeter Count: {total:.2f} liter")
-        self.meter_result_label.setText(f"Water Meter Count: {meter_volume:.2f} liter")
-        self.multiplier_label.setText(f"Multiplier: {self.meter_multiplier:.2f}")
+        self.total_label.setText(f"Flowmeter Count: {total:.0f} lt")
+        self.meter_result_label.setText(f"Water Meter Count: {meter_volume:.0f} lt")
+        self.multiplier_label.setText(f"Multiplier: {self.meter_multiplier:.0f}")
 
         if meter_volume == 0 or total == 0:
             self.error_label.setText("Relative Error: -")
@@ -233,67 +236,95 @@ class FlowmeterApp(QWidget):
             QMessageBox.warning(self, "No Data", "Lütfen önce bir Excel dosyası yükleyin.")
             return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Export PDF",
-                                                   f"report_{self.master_device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                                                   "PDF Files (*.pdf)")
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export PDF",
+            f"report_{self.master_device_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            "PDF Files (*.pdf)"
+        )
         if not file_path:
             return
 
-        c = canvas.Canvas(file_path, pagesize=A4)
-        width, height = A4
-        y = height - 2 * cm
+        # Belge oluştur
+        doc = SimpleDocTemplate(file_path, pagesize=A4,
+                                rightMargin=2 * cm, leftMargin=2 * cm,
+                                topMargin=2 * cm, bottomMargin=2 * cm)
+
+        elements = []
+        styles = getSampleStyleSheet()
 
         # Sayaç değerleri
         try:
             start_val = float(self.start_x1.text() or 0) + self.start_x01.value() / 10 + self.start_x001.value() / 100
             end_val = float(self.end_x1.text() or 0) + self.end_x01.value() / 10 + self.end_x001.value() / 100
             delta_val = max(0, end_val - start_val)
-            meter_litre = delta_val * self.meter_multiplier
+            meter_litre = delta_val * 1000 / self.meter_multiplier
         except:
             start_val = end_val = delta_val = meter_litre = 0
 
-        # Sayfa 1 - Özet
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(2 * cm, y, "Flowmeter Quality Assurance Test Summary")
-        y -= 1.5 * cm
-        c.setFont("Helvetica", 12)
+        # === Başlık ===
+        title = Paragraph("Doktar Flowmeter Quality Assurance Form", styles["Title"])
+        elements.append(title)
+        elements.append(Spacer(1, 1 * cm))
 
-        summary_items = [
-            self.device_id_label.text(),
-            self.meter_type_display.text(),
-            self.multiplier_label.text(),
-            f"Water Meter Start Value: {start_val:.3f}",
-            f"Water Meter End Value: {end_val:.3f}",
-            f"Consumption: {delta_val:.3f} x Multiplier",
-            f"Water Meter Count: {meter_litre:.2f} liter",
-            self.total_label.text(),
-            self.error_label.text(),
-            self.test_approval_label.text(),
+        # === Özet Tablosu ===
+        approval_text = self.test_approval_label.text()
+        approval_color = colors.red if "NOT" in approval_text.upper() else colors.green
+
+        summary_data = [
+            [f"{self.device_id_label.text()}"],
+            [f"{self.meter_type_display.text()}"],
+            [f"{self.multiplier_label.text()}"],
+            [f"Water Meter Start Value: {start_val:.2f}"],
+            [f"Water Meter End Value: {end_val:.2f}"],
+            [f"Water Meter Measurement: {delta_val:.2f}"],
+            [f"Consumption Formula: {delta_val:.2f} x 1000 / Multiplier"],
+            [f"Water Meter Count: {meter_litre:.0f} lt"],
+            [f"{self.total_label.text()}"],
+            [f"{self.error_label.text()} < 1%"],
+            [f"{approval_text}"],
         ]
-        for item in summary_items:
-            c.drawString(2 * cm, y, item)
-            y -= 1 * cm
 
-        c.showPage()
+        summary_table = Table(summary_data, colWidths=[doc.width])
+        summary_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+            ('FONTNAME', (0, 10), (0, 10), 'Helvetica-Bold'),
+            ('TEXTCOLOR', (0, 10), (0, 10), approval_color),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 1 * cm))
 
-        # Sayfa 2 - Seçilen Veriler
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(2 * cm, height - 2 * cm, "Flowmeter Datas")
-        c.setFont("Helvetica", 10)
-        y = height - 3 * cm
-
+        # === Seçilen Veriler ===
         selected_rows = self.data_table.selectionModel().selectedRows()
-        for i, index in enumerate(selected_rows):
-            if y < 3 * cm:
-                c.showPage()
-                y = height - 2 * cm
-                c.setFont("Helvetica", 10)
-            flow = self.data_table.item(index.row(), 0).text()
-            ts = self.data_table.item(index.row(), 1).text()
-            c.drawString(2 * cm, y, f"{i + 1}. Water Count: {flow} lt   Timestamp: {ts}")
-            y -= 0.7 * cm
+        if selected_rows:
+            data_rows = [["#", "Water Count (lt)", "Timestamp"]]
+            for i, index in enumerate(selected_rows):
+                flow = self.data_table.item(index.row(), 0).text()
+                ts = self.data_table.item(index.row(), 1).text()
+                data_rows.append([str(i + 1), flow, ts])
 
-        c.save()
+            data_table = Table(data_rows, colWidths=[2 * cm, 5 * cm, doc.width - 7 * cm])
+            data_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.black),
+            ]))
+            elements.append(Paragraph("Flowmeter Datas", styles["Title"]))
+            elements.append(Spacer(1, 0.3 * cm))
+            elements.append(data_table)
+        else:
+            elements.append(Paragraph("No flowmeter data selected.", styles["Normal"]))
+
+        # === PDF'i oluştur ===
+        doc.build(elements)
         QMessageBox.information(self, "Export Completed", "PDF report exported.")
 
 
