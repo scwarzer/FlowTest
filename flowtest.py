@@ -62,19 +62,19 @@ class FlowmeterApp(QWidget):
         self.meter_type_label = QLabel("Select Meter Type:")
         self.meter_type_combo = QComboBox()
         self.meter_type_combo.addItems([
-            "Klepsan Woltman DN50",
-            "Klepsan Woltman DN65",
-            "Klepsan Woltman DN80",
-            "Klepsan Woltman DN100",
-            "Klepsan Woltman DN150"
+            "Klepsan Woltman KVS-1WS",
+            "Klepsan Woltman KVS-2WS",
+            "Klepsan Woltman KVS-3WS",
+            "Klepsan Woltman KVS-4WS",
+            "Klepsan Woltman KVS-6WS"
         ])
         self.meter_type_combo.currentIndexChanged.connect(self.update_meter_info)
         self.meter_multiplier_map = {
-            "Klepsan Woltman DN50": 10,
-            "Klepsan Woltman DN65": 10,
-            "Klepsan Woltman DN80": 10,
-            "Klepsan Woltman DN100": 10,
-            "Klepsan Woltman DN150": 100
+            "Klepsan Woltman KVS-1WS": 10,
+            "Klepsan Woltman KVS-2WS": 10,
+            "Klepsan Woltman KVS-3WS": 10,
+            "Klepsan Woltman KVS-4WS": 100,
+            "Klepsan Woltman KVS-6WS": 100
         }
 
         watermeter_layout.addWidget(self.meter_type_label)
@@ -129,7 +129,7 @@ class FlowmeterApp(QWidget):
         report_layout.setSpacing(10)
 
         self.device_id_label = QLabel("Device ID: -")
-        self.meter_type_display = QLabel("Water Meter: Klepsan Woltman DN50")
+        self.meter_type_display = QLabel("Water Meter: Klepsan Woltman KVS-1WS")
         self.multiplier_label = QLabel("Multiplier: 10")
         self.meter_result_label = QLabel("Water Meter Count: -")
         self.total_label = QLabel("Flowmeter Count: -")
