@@ -73,8 +73,8 @@ class FlowmeterApp(QWidget):
             "Klepsan Woltman KVS-1WS": 10,
             "Klepsan Woltman KVS-2WS": 10,
             "Klepsan Woltman KVS-3WS": 10,
-            "Klepsan Woltman KVS-4WS": 100,
-            "Klepsan Woltman KVS-6WS": 100
+            "Klepsan Woltman KVS-4WS": 10,
+            "Klepsan Woltman KVS-6WS": 10,
         }
 
         watermeter_layout.addWidget(self.meter_type_label)
